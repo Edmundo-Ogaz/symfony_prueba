@@ -2,11 +2,15 @@
 // src/Controller/LuckyController.php
 namespace App\Controller;
 
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Debug\Debug;
 
-class LuckyController
+class LuckyController extends Controller
 {
     public function __construct(LoggerInterface $logger)
     {
@@ -15,13 +19,18 @@ class LuckyController
 
     public function number()
     {
-        // $log = new Logger('prueba');
-        // $log->info('Foo');
-        // $log->debug('Bar');
-
+        $log = new Logger('prueba');
+        $log->info('Foo');
+        $log->debug('Bar');
+        Debug::enable();
         $this->logger->info('They are talking about bacon again!');
 
         $number = random_int(0, 100);
+
+        $username = $this->getUser()->getUsername();
+        $log->info('username: ' . $username);
+
+        $log->info('number: ' . $number);
 
         return new Response(
             '<html><body>Lucky number: '.$number.'</body></html>'

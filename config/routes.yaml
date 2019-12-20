@@ -17,3 +17,11 @@ app_lucky_cometido:
 app_PdfCometidoNacional:
     path: /pdf/show
     controller: App\Controller\PdfController::PdfCometidoNacional
+
+app_controller:
+    path: /get
+    controller: App\Controller\Controller::tramitar_validar_pago_viatico_save
+
+app_devengar:
+    path: /devengar
+    controller: App\Controller\Controller::tramitar_devengar_pago_viatico_save

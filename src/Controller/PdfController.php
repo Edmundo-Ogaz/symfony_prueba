@@ -6,12 +6,16 @@ use Symfony\Component\HttpFoundation\Response;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
 use Spipu\Html2Pdf\Html2Pdf;
+use App\Service\AlfrescoService;
 
 class PdfController
 {
-    public function __construct(LoggerInterface $logger)
+  private $urlBase = "http://localhost:9080/alfresco/api/-default-/public/alfresco/versions/1/nodes";
+
+    public function __construct(LoggerInterface $logger, AlfrescoService $alfrescoService)
     {
         $this->logger = $logger;
+        $this->alfresco = $alfrescoService;
     }
 
     public function PdfCometidoNacional()
@@ -127,7 +131,7 @@ class PdfController
 					</tr>
 					<tr>
 						<td valign="top">Centro de Costo:</td>
-						<td align="left">xxxxxxxxxx</td>
+						<td align="left">'.date('Y_m_d-H-i-s').'</td>
 					</tr>
 					<tr>
 						<td valign="top">Grado:</td>
@@ -157,9 +161,183 @@ class PdfController
 
     	//$nombre = "Solicitud-".$rut.".pdf";
     	$nombre = "prueba.pdf";
-    	$html2pdf->Output($nombre, 'D');
+      $contentsFile = $html2pdf->Output($nombre, 'S');
 
-    	return;
+      $idNode = "27edfad8-5856-4431-b024-6954a6e07e2b";
+      $where="(isFolder=true)";
+      $retornoApiGet = $this->alfresco->getNodesChildren($idNode, $where);
+      $this->logger->debug('retornoApiGet ' . json_encode($retornoApiGet));
+      $exist = false;
+      $idNodo = null;
+      $entries = $retornoApiGet['data']->list->entries;
+      foreach($entries as $value){
+        $this->logger->debug('value ' . json_encode($value));
+        if ($value->entry->name === "X"){
+          $idFolder = $value->entry->id;
+          $where="(isFile=true)";
+          $retornoApiGetFile = $this->getNodesChildren($idFolder,$where);
+          $entriesFile = $retornoApiGetFile['data']->list->entries;
+          $this->logger->debug('entriesFile ' . json_encode($entriesFile));
+          foreach($entriesFile as $valueFile){
+            $this->logger->debug('valueFile ' . json_encode($valueFile));
+            if ($valueFile->entry->name === "prueba.pdf"){
+              $exist = true;
+              $idNodo =  $valueFile->entry->id;
+            }
+          }
+        }
+      }
+      $this->logger->debug('exist ' . json_encode($exist));
+
+      // $exist = false;
+      // if ($exist) {
+      //     $params = array("minorVersion" => true,
+      //                 "comment" => "First version");
+      //     $retornoApiContent = $this->putNodesContent($idNodo, $contentsFile, $params);
+      //     $this->logger->info('retornoApiContent ' . json_encode($retornoApiContent));
+      // } else {
+
+      //   $data = array(
+      //     "name" => $nombre,
+      //     "nodeType" => "cm:content",
+      //     "properties"=> array(
+      //         "cm:title"=>"pdfprueba",
+      //         "cm:description"=>"description test"
+      //     ),
+      //     "relativePath"=> "X"
+      //   );
+
+      //   $retornoApi = $this->postNodesChildren($data);
+      //   $this->logger->info('retornoApi ' . json_encode($retornoApi));
+
+      //   if ($retornoApi["status"]=="201") {
+      //       $idNewNodo = $retornoApi["data"]->entry->id;
+      //       $params = array("majorVersion" => true,
+      //                   "comment" => "First version");
+      //       $retornoApiContent = $this->putNodesContent($idNewNodo, $contentsFile , $params);
+      //       $this->logger->info('retornoApiContent ' . json_encode($retornoApiContent));
+      //   }
+      // }
+
+    	return new Response(
+        '<html><body>Lucky number: '.$exist.'</body></html>'
+    );
 
     }
+
+    public function  getNodesChildren($idNode, $where){
+
+      $url = $this->urlBase."/".$idNode."/children?where=".$where;
+      $this->logger->debug('url ' . $url);
+
+      $ch = curl_init();
+
+      curl_setopt($ch, CURLOPT_URL, $url);
+
+      $headers = array(
+          'Content-Type: application/json',
+          'Authorization:  Basic YWRtaW46YWRtaW4=',
+      );
+      curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+      $dataResultConeccion = curl_exec($ch);
+      if (!curl_errno($ch)) {
+          $codigoReturn= curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      }else{
+          $codigoReturn="200";
+      }
+
+      $dataResultConeccionReturn=null;
+      if ($codigoReturn=="200"){
+          $dataResultConeccionReturn=json_decode($dataResultConeccion);
+      }
+
+      curl_close($ch);
+      return array("status"=>$codigoReturn,"data"=>$dataResultConeccionReturn);
+
+  }
+
+    public function  postNodesChildren($data){
+
+      $url = $this->urlBase."/".$idNode."/children";
+
+      $ch = curl_init();
+
+      curl_setopt($ch, CURLOPT_URL, $url);
+      curl_setopt($ch, CURLOPT_POST, true);
+
+      $headers = array(
+          'Content-Type: application/json',
+          'Authorization:  Basic YWRtaW46YWRtaW4=',
+      );
+      curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+      $postdata = json_encode($data);
+      curl_setopt($ch, CURLOPT_POSTFIELDS, $postdata);
+
+      $dataResultConeccion = curl_exec($ch);
+      if (!curl_errno($ch)) {
+          $codigoReturn= curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      }else{
+          $codigoReturn="201";
+      }
+
+      $dataResultConeccionReturn=null;
+      if ($codigoReturn=="201"){
+          $dataResultConeccionReturn=json_decode($dataResultConeccion);
+      }
+
+      curl_close($ch);
+      return array("status"=>$codigoReturn,"data"=>$dataResultConeccionReturn);
+
+  }
+
+  public function  putNodesContent($idNode,$dataContentBodyUpdate, $params){
+
+    $urlParameters = http_build_query($params);
+
+    $url = $this->urlBase."/".$idNode."/content?".$urlParameters;
+
+    $this->logger->info('putNodesContent urlBase ' . $url);
+
+    $ch = curl_init();
+
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
+
+    $headers = array(
+        'Content-Type: application/json',
+        'Authorization:  Basic YWRtaW46YWRtaW4=',
+    );
+    // $headers = array(
+    //   'Content-Type: application/json',
+    //   'Authorization:  Basic YWRtaW46YWRtaW4=',
+    // );
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+    $postdata = json_encode(array("contentBodyUpdate"=>$dataContentBodyUpdate));
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $dataContentBodyUpdate);
+    // $this->logger->info('putNodesContent dataContentBodyUpdate ' . json_encode($dataContentBodyUpdate));
+    // curl_setopt($ch, CURLOPT_POSTFIELDS, "text plain");
+
+    $dataResultConeccion = curl_exec($ch);
+    $this->logger->info('putNodesContent dataResultConeccion ' . json_encode($dataResultConeccion));
+    if (!curl_errno($ch)) {
+        $codigoReturn= curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    }else{
+        $codigoReturn="200";
+    }
+
+    $dataResultConeccionReturn=null;
+    if ($codigoReturn=="200"){
+        $dataResultConeccionReturn=json_decode($dataResultConeccion);
+    }
+
+    curl_close($ch);
+    return array("status"=>$codigoReturn,"data"=>$dataResultConeccionReturn);
+
+}
 }
